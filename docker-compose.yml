@@ -1,0 +1,72 @@
+version: '3.9'
+
+services:
+  # PostgreSQL 17 - Separate database for Customer Service
+  postgres:
+    image: postgres:17-alpine
+    container_name: customer_postgres_db
+    platform: linux/arm64
+    restart: always
+    environment:
+      - POSTGRES_USER=customer_user
+      - POSTGRES_PASSWORD=customer_password
+      - POSTGRES_DB=customer_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U customer_user -d customer_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # pgAdmin 4 v9.11 - Database management UI
+  pgadmin:
+    image: dpage/pgadmin4:9.11
+    container_name: customer_pgadmin_ui
+    platform: linux/arm64
+    restart: always
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@customer.com
+      - PGADMIN_DEFAULT_PASSWORD=adminpass
+    ports:
+      - "5051:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Redis 7.4 - Using different DB index
+  redis:
+    image: redis:7.4-alpine
+    container_name: customer_redis_cache
+    platform: linux/arm64
+    restart: always
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./redis_data:/data
+
+  # FastAPI Customer Service App
+  fastapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: customer_service_app
+    platform: linux/arm64
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://customer_user:customer_password@postgres:5432/customer_db
+      - REDIS_URL=redis://redis:6379/1
+    ports:
+      - "8007:8007"
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8007 --reload
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
