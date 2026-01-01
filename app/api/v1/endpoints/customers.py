@@ -43,13 +43,6 @@ async def identify_customer(
     # ============= Check if refresh needed =============
     should_refresh = False
     if customer:
-        # Update access token if changed
-        if request.access_token and customer.access_token != request.access_token:
-            customer.access_token = request.access_token
-            customer.updated_at = datetime.utcnow()
-            db.commit()
-            db.refresh(customer)
-
         # Check if data is older than 24 hours
         time_since_update = datetime.utcnow() - customer.updated_at
         if time_since_update > timedelta(hours=24):
@@ -98,7 +91,6 @@ async def identify_customer(
         customer.last_name = last_name
         customer.profile_pic_url = profile_pic_url
         customer.custom_metadata = custom_metadata
-        customer.access_token = request.access_token
         customer.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(customer)
@@ -110,7 +102,6 @@ async def identify_customer(
             app_id=request.app_id,
             platform_id=request.platform_id,
             platform=request.platform,
-            access_token=request.access_token,
             first_name=first_name,
             last_name=last_name,
             profile_pic_url=profile_pic_url,

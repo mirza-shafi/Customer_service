@@ -12,7 +12,6 @@ class CustomerBase(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     profile_pic_url: Optional[str] = None
-    access_token: Optional[str] = None
     custom_metadata: Optional[Dict[str, Any]] = None
     is_active: bool = True
     is_blocked: bool = False
@@ -28,7 +27,6 @@ class CustomerUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     profile_pic_url: Optional[str] = None
-    access_token: Optional[str] = None
     custom_metadata: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
     is_blocked: Optional[bool] = None

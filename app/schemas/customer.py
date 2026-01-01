@@ -31,14 +31,11 @@ class CustomerCreate(CustomerBase):
     """
     Schema for creating a new customer.
 
-    For now, app_id and access_token are manually provided.
-    In the future, access_token will be fetched automatically.
+    App ID is required. Access token is passed in the request but not stored
+    for security purposes.
     """
 
     app_id: UUID = Field(..., description="App ID from App Service")
-    access_token: Optional[str] = Field(
-        None, description="Meta Graph API access token (manual entry for now)"
-    )
 
 
 class CustomerUpdate(BaseModel):
@@ -52,9 +49,6 @@ class CustomerUpdate(BaseModel):
     custom_metadata: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
     is_blocked: Optional[bool] = None
-    access_token: Optional[str] = Field(
-        None, description="Update Meta Graph API access token"
-    )
 
     class Config:
         from_attributes = True
