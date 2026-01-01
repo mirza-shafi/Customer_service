@@ -43,7 +43,7 @@ class CustomerService:
             profile_pic_url=customer_data.profile_pic_url,
             email=customer_data.email,
             phone=customer_data.phone,
-            metadata=customer_data.metadata or {},
+            custom_metadata=customer_data.custom_metadata or {},
             access_token=customer_data.access_token,
         )
         self.db.add(customer)

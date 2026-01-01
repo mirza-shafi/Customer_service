@@ -69,7 +69,7 @@ class Customer(Base):
     # ============= Custom Metadata =============
     # Store arbitrary custom attributes as JSON
     # Examples: tags, custom_fields, preferences, etc.
-    metadata = Column(JSON, nullable=True, default=dict)
+    custom_metadata = Column(JSON, nullable=True, default=dict)
 
     # ============= Status Flags =============
     is_active = Column(Boolean, default=True)

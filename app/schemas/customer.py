@@ -24,7 +24,7 @@ class CustomerBase(BaseModel):
     profile_pic_url: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=50)
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    custom_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class CustomerCreate(CustomerBase):
@@ -49,7 +49,7 @@ class CustomerUpdate(BaseModel):
     profile_pic_url: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=50)
-    metadata: Optional[Dict[str, Any]] = None
+    custom_metadata: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
     is_blocked: Optional[bool] = None
     access_token: Optional[str] = Field(
@@ -84,7 +84,7 @@ class CustomerResponse(BaseModel):
     profile_pic_url: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    custom_metadata: Optional[Dict[str, Any]] = None
     is_active: bool
     is_blocked: bool
     created_at: datetime

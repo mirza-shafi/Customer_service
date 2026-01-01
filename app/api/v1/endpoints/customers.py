@@ -11,11 +11,16 @@ from app.schemas.customer_schemas import (
 )
 from app.services.graph_api_service import GraphAPIService
 import uuid
-from datetime import datetime
+import logging
+from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
+# Identify a customer
+# route: /api/v1/customers/identify
 @router.post("/identify", response_model=CustomerResponse)
 async def identify_customer(
     request: IdentifyCustomerRequest, db: Session = Depends(get_db)
@@ -23,6 +28,7 @@ async def identify_customer(
     """
     Identify a customer by their Platform ID (PSID).
     If not found, fetch details from Meta Graph API and create a new customer.
+    If found but data is older than 24 hours, refresh from Meta Graph API.
     """
     # Check if customer already exists
     customer = (
@@ -34,6 +40,8 @@ async def identify_customer(
         .first()
     )
 
+    # ============= Check if refresh needed =============
+    should_refresh = False
     if customer:
         # Update access token if changed
         if request.access_token and customer.access_token != request.access_token:
@@ -41,32 +49,81 @@ async def identify_customer(
             customer.updated_at = datetime.utcnow()
             db.commit()
             db.refresh(customer)
-        return customer
 
-    # Customer not found, fetch from Graph API
+        # Check if data is older than 24 hours
+        time_since_update = datetime.utcnow() - customer.updated_at
+        if time_since_update > timedelta(hours=24):
+            logger.info(
+                f"⏰ Customer {customer.platform_id} data is stale, refreshing from Meta API"
+            )
+            should_refresh = True
+        else:
+            return customer
+
+    # ============= Fetch from Graph API (new customer or refresh needed) =============
     profile_data = await GraphAPIService.get_user_profile(
         access_token=request.access_token, psid=request.platform_id
     )
+    print(profile_data)
 
     if not profile_data:
-        # If Graph API fails, still create customer but with limited info
+        # If Graph API fails, still create/return customer but with limited info
+        if customer and not should_refresh:
+            return customer
         profile_data = {}
 
-    new_customer = Customer(
-        app_id=request.app_id,
-        platform_id=request.platform_id,
-        platform=request.platform,
-        access_token=request.access_token,
-        first_name=profile_data.get("first_name"),
-        last_name=profile_data.get("last_name"),
-        profile_pic_url=profile_data.get("profile_pic"),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-    )
+    # ============= Extract Primary Fields =============
+    # Robust field mapping to handle both Messenger and Instagram responses
+    full_name = profile_data.get("name") or ""
+    first_name = profile_data.get("first_name")
+    last_name = profile_data.get("last_name")
 
-    db.add(new_customer)
-    db.commit()
-    db.refresh(new_customer)
+    # Fallback: If Meta only gives 'name', split it manually
+    if not first_name and full_name:
+        parts = full_name.split(" ", 1)
+        first_name = parts[0]
+        last_name = parts[1] if len(parts) > 1 else ""
+
+    # Use 'profile_pic' (works for both Messenger and Instagram)
+    profile_pic_url = profile_data.get("profile_pic")
+
+    # ============= Store Full Meta API Response =============
+    # Save entire payload in custom_metadata for audit trail and future use
+    # Include all fields returned by Meta API
+    custom_metadata = profile_data.copy()  # Store full payload
+
+    if customer and should_refresh:
+        # ============= Update Existing Customer =============
+        customer.first_name = first_name
+        customer.last_name = last_name
+        customer.profile_pic_url = profile_pic_url
+        customer.custom_metadata = custom_metadata
+        customer.access_token = request.access_token
+        customer.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(customer)
+        logger.info(f"✅ Refreshed customer {customer.platform_id} data from Meta API")
+        return customer
+    else:
+        # ============= Create New Customer =============
+        new_customer = Customer(
+            app_id=request.app_id,
+            platform_id=request.platform_id,
+            platform=request.platform,
+            access_token=request.access_token,
+            first_name=first_name,
+            last_name=last_name,
+            profile_pic_url=profile_pic_url,
+            custom_metadata=custom_metadata if custom_metadata else None,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+
+        db.add(new_customer)
+        db.commit()
+        db.refresh(new_customer)
+        logger.info(f"✅ Created new customer {new_customer.platform_id}")
+        return new_customer
 
     return new_customer
 
