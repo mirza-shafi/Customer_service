@@ -1,0 +1,61 @@
+version: '3.9'
+
+services:
+  # PostgreSQL 17 - Database
+  postgres:
+    image: postgres:17-alpine
+    container_name: customer_postgres_db
+    platform: linux/arm64
+    restart: always
+    environment:
+      - POSTGRES_USER=customer_user
+      - POSTGRES_PASSWORD=customer_password
+      - POSTGRES_DB=customer_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U customer_user -d customer_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # pgAdmin 4 v9.11 - Database management UI
+  pgadmin:
+    image: dpage/pgadmin4:9.11
+    container_name: customer_pgadmin_ui
+    platform: linux/arm64
+    restart: always
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@customer.com
+      - PGADMIN_DEFAULT_PASSWORD=adminpass
+    ports:
+      - "5051:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Redis 7.4 - Cache (Commented out for now)
+  # redis:
+  #   image: redis:7.4-alpine
+  #   container_name: customer_redis_cache
+  #   platform: linux/arm64
+  #   restart: always
+  #   ports:
+  #     - "6380:6379"
+  #   volumes:
+  #     - ./redis_data:/data
+
+  # Redis Commander - Redis UI (Commented out for now)
+  # redis-commander:
+  #   image: rediscommander/redis-commander:latest
+  #   container_name: customer_redis_ui
+  #   platform: linux/arm64
+  #   restart: always
+  #   environment:
+  #     - REDIS_HOSTS=local:redis:6379:1
+  #   ports:
+  #     - "8081:8081"
+  #   depends_on:
+  #     - redis
