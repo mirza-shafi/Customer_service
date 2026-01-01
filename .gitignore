@@ -35,6 +35,8 @@ env/
 
 # Environment files
 .env
+.env.example
+
 
 # Docker volumes
 postgres_data/
@@ -47,3 +49,4 @@ redis_data/
 .pytest_cache/
 .coverage
 htmlcov/
+.DS_Store
