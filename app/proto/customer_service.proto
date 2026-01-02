@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package customer;
+
+// Request message containing platform details
+message IdentifyRequest {
+  string platform_id = 1;
+  string access_token = 2;
+  string platform = 3;
+  string app_id = 4;
+}
+
+// Response message returning the created/found customer ID
+message CustomerResponse {
+  string customer_id = 1;
+  bool is_new = 2;
+  string full_name = 3;
+}
+
+// This service is used for identifying customers based on their platform details.
+// It provides the RPC method 'IdentifyCustomer' to retrieve the customer ID and other details.
+service CustomerService {
+  // The RPC method the Webhook Service will call
+  rpc IdentifyCustomer (IdentifyRequest) returns (CustomerResponse);
+}
