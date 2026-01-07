@@ -50,11 +50,6 @@ class Customer(Base):
     # Platform identifier: 'instagram' or 'facebook'
     platform = Column(String(50), nullable=False, default="instagram")
 
-    # ============= Manual Entry Fields (For Now) =============
-    # Access token to fetch data from Meta Graph API
-    # TODO: In future, this will be automated through OAuth flow
-    access_token = Column(Text, nullable=True)
-
     # ============= Data Fetched from Meta Graph API =============
     # GET https://graph.facebook.com/v21.0/<PSID>?fields=first_name,last_name,profile_pic&access_token=<TOKEN>
     first_name = Column(String(100), nullable=True)
@@ -69,7 +64,7 @@ class Customer(Base):
     # ============= Custom Metadata =============
     # Store arbitrary custom attributes as JSON
     # Examples: tags, custom_fields, preferences, etc.
-    metadata = Column(JSON, nullable=True, default=dict)
+    custom_metadata = Column(JSON, nullable=True, default=dict)
 
     # ============= Status Flags =============
     is_active = Column(Boolean, default=True)

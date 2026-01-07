@@ -19,5 +19,12 @@ python-multipart==0.0.6
 redis==5.0.1
 httpx==0.25.2
 
+# gRPC & Protocol Buffers
+grpcio==1.60.0
+protobuf==4.25.1
+grpcio-tools==1.60.0
+
 # Testing
 pytest==7.4.3
+
+

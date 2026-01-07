@@ -24,21 +24,18 @@ class CustomerBase(BaseModel):
     profile_pic_url: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=50)
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    custom_metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class CustomerCreate(CustomerBase):
     """
     Schema for creating a new customer.
 
-    For now, app_id and access_token are manually provided.
-    In the future, access_token will be fetched automatically.
+    App ID is required. Access token is passed in the request but not stored
+    for security purposes.
     """
 
     app_id: UUID = Field(..., description="App ID from App Service")
-    access_token: Optional[str] = Field(
-        None, description="Meta Graph API access token (manual entry for now)"
-    )
 
 
 class CustomerUpdate(BaseModel):
@@ -49,12 +46,9 @@ class CustomerUpdate(BaseModel):
     profile_pic_url: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=50)
-    metadata: Optional[Dict[str, Any]] = None
+    custom_metadata: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
     is_blocked: Optional[bool] = None
-    access_token: Optional[str] = Field(
-        None, description="Update Meta Graph API access token"
-    )
 
     class Config:
         from_attributes = True
@@ -84,7 +78,7 @@ class CustomerResponse(BaseModel):
     profile_pic_url: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    custom_metadata: Optional[Dict[str, Any]] = None
     is_active: bool
     is_blocked: bool
     created_at: datetime
