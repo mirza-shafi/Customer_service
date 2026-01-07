@@ -9,6 +9,92 @@ logger = logging.getLogger(__name__)
 class GraphAPIService:
     BASE_URL = "https://graph.facebook.com/v21.0"
 
+    # Platform-specific field sets
+    FACEBOOK_FIELDS = [
+        "first_name",
+        "last_name",
+        "name",
+        "profile_pic",
+        "email",
+        "locale",
+        "timezone",
+        "gender",
+    ]
+    INSTAGRAM_FIELDS = ["name", "username", "profile_pic", "biography", "website"]
+    BASE_FIELDS = ["name", "profile_pic", "id"]
+
+    @classmethod
+    def _detect_platform_and_fetch_sync(
+        cls, access_token: str, psid: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Detect if user is Instagram or Facebook and fetch appropriate fields.
+        Uses a smart detection strategy with minimal API calls.
+
+        Returns:
+            Dict with profile data or None
+        """
+        url = f"{cls.BASE_URL}/{psid}"
+
+        # ========== Call 1: Try Instagram fields first ==========
+        logger.info(
+            f"📡 Fetching profile for {psid} (sync) - Attempt 1: Instagram fields"
+        )
+        params = {
+            "fields": ",".join(cls.BASE_FIELDS + cls.INSTAGRAM_FIELDS),
+            "access_token": access_token,
+        }
+        response = httpx.get(url, params=params, timeout=10.0)
+
+        if response.status_code == 200:
+            data = response.json()
+            # Check if Instagram-specific field (username) was returned
+            if "username" in data:
+                logger.info(f"✅ Detected Instagram profile for {psid}")
+                logger.info(f"✅ Fetched profile with fields: {list(data.keys())}")
+                return data
+            else:
+                # Has base fields but no username - might be Facebook or partial
+                logger.debug(f"Instagram fields returned but no username field")
+                return data
+
+        error_response = (
+            response.json()
+            if response.headers.get("content-type") == "application/json"
+            else response.text
+        )
+        logger.debug(f"Instagram attempt failed: {str(error_response)[:150]}")
+
+        # ========== Call 2: Try Facebook fields ==========
+        logger.info(
+            f"📡 Fetching profile for {psid} (sync) - Attempt 2: Facebook fields"
+        )
+        params["fields"] = ",".join(cls.BASE_FIELDS + cls.FACEBOOK_FIELDS)
+        response = httpx.get(url, params=params, timeout=10.0)
+
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"✅ Detected Facebook profile for {psid}")
+            logger.info(f"✅ Fetched profile with fields: {list(data.keys())}")
+            return data
+
+        logger.debug(f"Facebook attempt failed: {response.text[:150]}")
+
+        # ========== Fallback: Base fields only ==========
+        logger.warning(
+            f"📡 Fetching profile for {psid} (sync) - Fallback: Base fields only"
+        )
+        params["fields"] = ",".join(cls.BASE_FIELDS)
+        response = httpx.get(url, params=params, timeout=10.0)
+
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"✅ Fetched minimal profile for {psid}: {list(data.keys())}")
+            return data
+
+        logger.error(f"❌ All attempts failed. Meta API Error: {response.text[:200]}")
+        return None
+
     @classmethod
     def get_user_profile_sync(
         cls, access_token: str, psid: str
@@ -17,6 +103,7 @@ class GraphAPIService:
         Synchronous version of get_user_profile for use in gRPC handlers and other sync contexts.
 
         Fetch comprehensive user profile information from Meta Graph API using PSID/IGSID.
+        Intelligently detects whether the user is from Instagram or Facebook and requests appropriate fields.
 
         Args:
             access_token: The Page Access Token.
@@ -33,111 +120,14 @@ class GraphAPIService:
 
             Instagram Business:
             - name, username, profile_pic
-            - biography, website, ig_id
-            - followers_count, follows_count
+            - biography, website
 
-        Note:
-            Implements intelligent field selection based on what's actually available.
-            Tries to request fields individually to isolate permission/availability issues.
+        Optimization:
+            Makes 2-3 API calls maximum (vs previous 12+ calls)
+            Detects platform type to request only available fields
         """
-        url = f"{cls.BASE_URL}/{psid}"
-
         try:
-            # ========== Attempt 1: Full comprehensive fields ==========
-            logger.info(
-                f"📡 Fetching profile for {psid} (sync) - Attempt 1: Comprehensive fields"
-            )
-            params = {
-                "fields": "first_name,last_name,name,profile_pic,username,email,locale,timezone,gender,biography,website",
-                "access_token": access_token,
-            }
-            response = httpx.get(url, params=params, timeout=10.0)
-
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"✅ Fetched comprehensive profile for {psid}")
-                logger.debug(f"Returned fields: {list(data.keys())}")
-                return data
-
-            # Log what fields failed
-            error_msg = response.text
-            logger.warning(
-                f"⚠️ Attempt 1 failed (400): {error_msg[:200]}... Trying individual fields for {psid}"
-            )
-
-            # ========== Attempt 2: Try fields individually ==========
-            # Start with a base set and add fields one by one
-            base_fields = ["name", "profile_pic"]
-            optional_fields = [
-                "first_name",
-                "last_name",
-                "username",
-                "email",
-                "locale",
-                "timezone",
-                "gender",
-                "biography",
-                "website",
-            ]
-
-            successful_response = None
-            collected_fields = {}
-
-            # First try base fields
-            logger.info(
-                f"📡 Fetching profile for {psid} (sync) - Attempt 2: Base fields"
-            )
-            params["fields"] = ",".join(base_fields)
-            response = httpx.get(url, params=params, timeout=10.0)
-
-            if response.status_code == 200:
-                collected_fields = response.json()
-                logger.info(
-                    f"✅ Base fields retrieved: {list(collected_fields.keys())}"
-                )
-            else:
-                logger.error(f"❌ Even base fields failed: {response.text[:200]}")
-                return None
-
-            # Try adding optional fields one by one
-            for field in optional_fields:
-                test_fields = base_fields + [field]
-                params["fields"] = ",".join(test_fields)
-                response = httpx.get(url, params=params, timeout=10.0)
-
-                if response.status_code == 200:
-                    data = response.json()
-                    # Check if the new field was actually returned
-                    if field in data and field not in collected_fields:
-                        collected_fields[field] = data[field]
-                        logger.debug(f"✅ Added field: {field} = {data[field]}")
-                else:
-                    logger.debug(
-                        f"⚠️ Field '{field}' not available or permission denied"
-                    )
-
-            if collected_fields:
-                logger.info(
-                    f"✅ Fetched profile (composite) for {psid} with fields: {list(collected_fields.keys())}"
-                )
-                return collected_fields
-
-            # ========== Fallback: Minimal fields ==========
-            logger.warning(
-                f"📡 Fetching profile for {psid} (sync) - Attempt 3: Minimal fields"
-            )
-            params["fields"] = "name,profile_pic,id"
-            response = httpx.get(url, params=params, timeout=10.0)
-
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(
-                    f"✅ Fetched minimal profile for {psid}: {list(data.keys())}"
-                )
-                return data
-
-            logger.error(f"❌ All attempts failed. Meta API Error: {response.text}")
-            return None
+            return cls._detect_platform_and_fetch_sync(access_token, psid)
 
         except httpx.RequestError as e:
             logger.error(f"❌ Network error fetching profile (sync): {e}")
@@ -147,11 +137,78 @@ class GraphAPIService:
             return None
 
     @classmethod
+    async def _detect_platform_and_fetch(
+        cls, client: httpx.AsyncClient, access_token: str, psid: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Detect if user is Instagram or Facebook and fetch appropriate fields (async).
+        Uses a smart detection strategy with minimal API calls.
+
+        Returns:
+            Dict with profile data or None
+        """
+        url = f"{cls.BASE_URL}/{psid}"
+
+        # ========== Call 1: Try Instagram fields first ==========
+        logger.info(f"📡 Fetching profile for {psid} - Attempt 1: Instagram fields")
+        params = {
+            "fields": ",".join(cls.BASE_FIELDS + cls.INSTAGRAM_FIELDS),
+            "access_token": access_token,
+        }
+        response = await client.get(url, params=params, timeout=10.0)
+
+        if response.status_code == 200:
+            data = response.json()
+            # Check if Instagram-specific field (username) was returned
+            if "username" in data:
+                logger.info(f"✅ Detected Instagram profile for {psid}")
+                logger.info(f"✅ Fetched profile with fields: {list(data.keys())}")
+                return data
+            else:
+                # Has base fields but no username - might be Facebook or partial
+                logger.debug(f"Instagram fields returned but no username field")
+                return data
+
+        error_response = (
+            response.json()
+            if response.headers.get("content-type") == "application/json"
+            else response.text
+        )
+        logger.debug(f"Instagram attempt failed: {str(error_response)[:150]}")
+
+        # ========== Call 2: Try Facebook fields ==========
+        logger.info(f"📡 Fetching profile for {psid} - Attempt 2: Facebook fields")
+        params["fields"] = ",".join(cls.BASE_FIELDS + cls.FACEBOOK_FIELDS)
+        response = await client.get(url, params=params, timeout=10.0)
+
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"✅ Detected Facebook profile for {psid}")
+            logger.info(f"✅ Fetched profile with fields: {list(data.keys())}")
+            return data
+
+        logger.debug(f"Facebook attempt failed: {response.text[:150]}")
+
+        # ========== Fallback: Base fields only ==========
+        logger.warning(f"📡 Fetching profile for {psid} - Fallback: Base fields only")
+        params["fields"] = ",".join(cls.BASE_FIELDS)
+        response = await client.get(url, params=params, timeout=10.0)
+
+        if response.status_code == 200:
+            data = response.json()
+            logger.info(f"✅ Fetched minimal profile for {psid}: {list(data.keys())}")
+            return data
+
+        logger.error(f"❌ All attempts failed. Meta API Error: {response.text[:200]}")
+        return None
+
+    @classmethod
     async def get_user_profile(
         cls, access_token: str, psid: str
     ) -> Optional[Dict[str, Any]]:
         """
         Fetch comprehensive user profile information from Meta Graph API using PSID/IGSID.
+        Intelligently detects whether the user is from Instagram or Facebook and requests appropriate fields.
 
         Args:
             access_token: The Page Access Token.
@@ -168,117 +225,15 @@ class GraphAPIService:
 
             Instagram Business:
             - name, username, profile_pic
-            - biography, website, ig_id
-            - followers_count, follows_count
+            - biography, website
 
-        Note:
-            Implements intelligent field selection based on what's actually available.
-            Tries to request fields individually to isolate permission/availability issues.
+        Optimization:
+            Makes 2-3 API calls maximum (vs previous 12+ calls)
+            Detects platform type to request only available fields
         """
-        url = f"{cls.BASE_URL}/{psid}"
-
         try:
             async with httpx.AsyncClient() as client:
-                # ========== Attempt 1: Full comprehensive fields ==========
-                logger.info(
-                    f"📡 Fetching profile for {psid} - Attempt 1: Comprehensive fields"
-                )
-                params = {
-                    "fields": "first_name,last_name,name,profile_pic,username,email,locale,timezone,gender,biography,website",
-                    "access_token": access_token,
-                }
-                response = await client.get(url, params=params, timeout=10.0)
-
-                if response.status_code == 200:
-                    data = response.json()
-                    logger.info(f"✅ Fetched comprehensive profile for {psid}")
-                    logger.debug(f"Returned fields: {list(data.keys())}")
-                    return data
-
-                # Log what fields failed
-                error_msg = response.text
-                logger.warning(
-                    f"⚠️ Attempt 1 failed (400): {error_msg[:200]}... Trying individual fields for {psid}"
-                )
-
-                # ========== Attempt 2: Try fields individually ==========
-                # Start with a base set and add fields one by one
-                base_fields = ["name", "profile_pic"]
-                optional_fields = [
-                    "first_name",
-                    "last_name",
-                    "username",
-                    "email",
-                    "locale",
-                    "timezone",
-                    "gender",
-                    "biography",
-                    "website",
-                ]
-
-                successful_response = None
-                collected_fields = {}
-
-                # First try base fields
-                logger.info(f"📡 Fetching profile for {psid} - Attempt 2: Base fields")
-                params["fields"] = ",".join(base_fields)
-                response = await client.get(url, params=params, timeout=10.0)
-
-                if response.status_code == 200:
-                    collected_fields = response.json()
-                    logger.info(
-                        f"✅ Base fields retrieved: {list(collected_fields.keys())}"
-                    )
-                else:
-                    logger.error(f"❌ Even base fields failed: {response.text[:200]}")
-                    return None
-
-                # Try adding optional fields one by one
-                for field in optional_fields:
-                    test_fields = base_fields + [field]
-                    params["fields"] = ",".join(test_fields)
-                    response = await client.get(url, params=params, timeout=10.0)
-
-                    if response.status_code == 200:
-                        data = response.json()
-                        # Check if the new field was actually returned
-                        if field in data and field not in collected_fields:
-                            collected_fields[field] = data[field]
-                            logger.debug(f"✅ Added field: {field} = {data[field]}")
-                    else:
-                        logger.debug(
-                            f"⚠️ Field '{field}' not available or permission denied"
-                        )
-
-                if collected_fields:
-                    logger.info(
-                        f"✅ Fetched profile (composite) for {psid} with fields: {list(collected_fields.keys())}"
-                    )
-                    return collected_fields
-
-                # ========== Fallback: Minimal fields ==========
-                logger.warning(
-                    f"📡 Fetching profile for {psid} - Attempt 3: Minimal fields"
-                )
-                params["fields"] = "name,profile_pic,id"
-                response = await client.get(url, params=params, timeout=10.0)
-
-                if response.status_code == 200:
-                    data = response.json()
-                    logger.info(
-                        f"✅ Fetched minimal profile for {psid}: {list(data.keys())}"
-                    )
-                    return data
-
-                logger.error(f"❌ All attempts failed. Meta API Error: {response.text}")
-                return None
-
-        except httpx.RequestError as e:
-            logger.error(f"❌ Network error fetching profile: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"❌ Unexpected error fetching profile: {e}")
-            return None
+                return await cls._detect_platform_and_fetch(client, access_token, psid)
 
         except httpx.RequestError as e:
             logger.error(f"❌ Network error fetching profile: {e}")

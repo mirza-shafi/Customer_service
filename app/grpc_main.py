@@ -12,7 +12,7 @@ logger = logging.getLogger("grpc_server")
 def serve():
     # 1. Create the gRPC server
     # We use a ThreadPool to handle concurrent RPC calls
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=100))
 
     # 2. Add our Servicer logic to the server
     customer_service_pb2_grpc.add_CustomerServiceServicer_to_server(
