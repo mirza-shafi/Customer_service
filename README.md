@@ -15,24 +15,19 @@ This service manages customers who message you via Instagram/Facebook, distinct 
 | **app_id** | Logical link to App Service (no hard FK across microservices) |
 | **access_token** | Meta Graph API token for fetching profile data |
 
-## Architecture
+```mermaid
+graph TD
+    Auth[Auth Service<br/>Port 8000]
+    Web[Webhook Service<br/>Port 8006]
+    Cust[Customer Service<br/>Port 8007 / gRPC 50052]
+    Apps[Apps Service<br/>Port 8500 / gRPC 50051]
+    Meta[Meta Graph API]
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Auth Service  │     │  Webhook Service │     │ Customer Service│
-│   (Port 8000)   │     │   (Port 8006)    │     │   (Port 8007)   │
-│                 │     │                  │     │                 │
-│  - User Auth    │     │  - Conversations │────▶│  - Customers    │
-│  - JWT Tokens   │────▶│  - Messages      │     │  - Meta Profiles│
-│  - JWKS         │     │  - Channels      │     │  - PSID Mapping │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                              │                        ▲
-                              │    fetch profile       │
-                              ▼                        │
-                        ┌─────────────────┐            │
-                        │  Meta Graph API │────────────┘
-                        │   (Facebook)    │  profile data
-                        └─────────────────┘
+    Web -->|gRPC| Apps
+    Web -->|gRPC| Cust
+    Apps -->|gRPC| Cust
+    Cust -->|REST| Meta
+    Web -->|REST| Meta
 ```
 
 ## Features
@@ -118,9 +113,16 @@ docker-compose up -d postgres pgadmin redis
 
 ### 5. Run Application
 
+**FastAPI Server**:
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8007 --reload
 ```
+
+**gRPC Server**:
+```bash
+python app/grpc_main.py
+```
+Starts on port `50052`.
 
 ## API Endpoints
 

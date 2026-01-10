@@ -20,7 +20,7 @@ def serve():
     )
 
     # 3. Define the port (Internal only usually)
-    listen_addr = "[::]:50051"
+    listen_addr = "[::]:50052"
     server.add_insecure_port(listen_addr)
 
     logger.info(f"🚀 gRPC Server starting on {listen_addr}")
