@@ -16,7 +16,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Redis connection for JWKS caching
 redis_client = redis.StrictRedis.from_url(settings.REDIS_URL, decode_responses=True)
-security_scheme = HTTPBearer()
+security_scheme = HTTPBearer(auto_error=False)
 JWKS_URL = settings.JWKS_URL
 ALGORITHM = settings.ALGORITHM
 
