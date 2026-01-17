@@ -22,8 +22,10 @@ class Settings(BaseSettings):
     REDIS_URL: str
     REDIS_DB: int = 1
 
-    # CORS
-    CORS_ORIGINS: list = ["*"]
+    # Frontend URLs for CORS
+    LOCAL_FRONTEND_URL: Optional[str] = None
+    STUDIO_FRONTEND_URL: Optional[str] = None
+    FRONTEND_URL: Optional[str] = None
 
     # Meta Graph API Configuration
     META_GRAPH_API_VERSION: str = "v21.0"

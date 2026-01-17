@@ -60,6 +60,15 @@ services:
     environment:
       - DATABASE_URL=postgresql://customer_user:customer_password@postgres:5432/customer_db
       - REDIS_URL=redis://redis:6379/1
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=${ALGORITHM}
+      - JWKS_URL=${JWKS_URL}
+      - JWT_ISSUER=${JWT_ISSUER}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
+      - JWT_PUBLIC_KEY=${JWT_PUBLIC_KEY}
+      - LOCAL_FRONTEND_URL=${LOCAL_FRONTEND_URL}
+      - STUDIO_FRONTEND_URL=${STUDIO_FRONTEND_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
     ports:
       - "8007:8007"
     volumes:

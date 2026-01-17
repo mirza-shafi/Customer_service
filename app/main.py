@@ -81,13 +81,20 @@ app = FastAPI(
 )
 
 # Configure CORS
+origins = [
+    settings.LOCAL_FRONTEND_URL,
+    settings.STUDIO_FRONTEND_URL,
+    settings.FRONTEND_URL,
+]
+# Filter out None or empty values and strip whitespace
+origins = [origin.strip() for origin in origins if origin and origin.strip()]
+# If no origins configured, default to localhost for development
+if not origins:
+    origins = ["http://localhost:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://auth.brainchat.cloud",
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
